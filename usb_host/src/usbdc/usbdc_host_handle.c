@@ -288,10 +288,14 @@ void usbdc_handle_free(usbdc_handle *handle) {
 	free(handle);
 }
 int usbdc_handle_checkevt(usbdc_handle *handle) {
-	struct timeval tv = { 0, 0 };
+	struct timeval time = { 0, 0 };
+	return usbdc_handle_checkevt2(handle, &time);
+}
+int usbdc_handle_checkevt2(usbdc_handle *handle , struct timeval *tv) {
+
 	usbdc_line *ls;
 #ifdef __WIN32__
-	int ret = libusb_handle_events_timeout_completed(handle->ctx, &tv, NULL);
+	int ret = libusb_handle_events_timeout_completed(handle->ctx, tv, NULL);
 	if(ret<0)
 	{
 		usbdc_log(1, this, "Unable to use select");
@@ -316,7 +320,7 @@ int usbdc_handle_checkevt(usbdc_handle *handle) {
 			FD_SET(pfds[i]->fd, &handle->wfd);
 		max_fd = pfds[i]->fd > max_fd ? pfds[i]->fd : max_fd;
 	}
-	int ret = select(max_fd + 1, &handle->rfd, &handle->wfd, NULL, &tv);
+	int ret = select(max_fd + 1, &handle->rfd, &handle->wfd, NULL, tv);
 	if (ret < 0) {
 		usbdc_log(1, this, "Unable to use select");
 		handle->connect = 0;
@@ -324,11 +328,21 @@ int usbdc_handle_checkevt(usbdc_handle *handle) {
 	}
 	if (ret == 0)
 		goto out;
+	if (handle->connect) {
+		for (int i = 0; i < handle->nline; i++) {
+			ls = handle->line_array[i];
+			if (ls->read_header) {
+				ls = NULL;
+			} else {
+				puts("set ting failse");
+			}
+		}
+	}
 	for (int i = 0; pfds[i]; ++i) {
 		if (!FD_ISSET(pfds[i]->fd,
 				&handle->rfd) && !FD_ISSET(pfds[i]->fd, &handle->wfd))
 			continue;
-		int ret = libusb_handle_events_timeout_completed(handle->ctx, &tv,
+		int ret = libusb_handle_events_timeout_completed(handle->ctx, tv,
 		NULL);
 		if (ret != 0) {
 			handle->connect = 0;

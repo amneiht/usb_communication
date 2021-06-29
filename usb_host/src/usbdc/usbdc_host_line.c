@@ -72,6 +72,10 @@ static int com_header_request(void *data, usbdc_line *line, int state, int rw) {
 			//todo test pipe
 			line->write_data->length = ls;
 			line->write_progess = usbdc_state_handle;
+			if (ls < 1 || ls > USB_MAX) {
+				line->write_progess = usbdc_state_false;
+				return 0;
+			}
 			int ret = libusb_submit_transfer(line->write_data);
 			if (ret < 0) {
 				line->write_progess = usbdc_state_false;
@@ -189,11 +193,11 @@ int usbdc_line_read_cancel(usbdc_line *line) {
 }
 int usbdc_line_write(usbdc_line *line, char *buff, int slen) {
 	if (!line->han || !line->han->connect)
-			return 0;
-		if (line->write_header == NULL) {
-			usbdc_log(2, fname, "no enpoint to sen data");
-			return -10;
-		}
+		return 0;
+	if (line->write_header == NULL) {
+		usbdc_log(2, fname, "no enpoint to sen data");
+		return -10;
+	}
 	if (line->write_progess == usbdc_state_inprogess) {
 		usbdc_log(2, fname, "cant not write: we are seding data");
 		return LIBUSB_ERROR_BUSY;
@@ -219,7 +223,7 @@ int usbdc_line_write(usbdc_line *line, char *buff, int slen) {
 }
 int usbdc_line_read(usbdc_line *line, char *buff, int slen) {
 	if (!line->han || !line->han->connect)
-					return 0;
+		return 0;
 	if (line->read_header == NULL) {
 		usbdc_log(2, fname, "no enpoint to sen data");
 		return -10;

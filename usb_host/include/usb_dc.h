@@ -11,7 +11,7 @@
 extern "C" {
 #endif
 #include <libusb-1.0/libusb.h>
-#define USB_MAX  6000
+#define USB_MAX  2000
 #define usbdc_log(lv,name,reason) \
 	if(usbdc_loglv >= lv) \
 	fprintf(stderr,"file : %.10s ... %s\n",name,reason)
@@ -42,7 +42,7 @@ typedef struct usbdc_handle {
 	libusb_device_handle *devh;
 	char interface;
 #ifdef __linux__
-	fd_set rfd ,wfd ;
+	fd_set rfd, wfd;
 #endif
 	//  ------------------- line ----------------
 	int connect; // usb connect status
@@ -91,14 +91,20 @@ int usbdc_line_is_write_timeout(usbdc_line *line, int timeout);
 int usbdc_line_is_read_timeout(usbdc_line *line, int timeout);
 
 //usbdc_buffer hepler
-int usbdc_buff_push(usbdc_buff *buff, char *data, int slen);
-int usbdc_buff_pop(usbdc_buff *buff, char *data, int slen);
+int usbdc_buff_push(usbdc_buff *buff, void *data, int slen);
+int usbdc_buff_pop(usbdc_buff *buff, void *data, int slen);
+
+int usbdc_buff_push_mess(usbdc_buff *buff, usbdc_message *mess);
+int usbdc_buff_pop_mess(usbdc_buff *buff, usbdc_message *mess);
 usbdc_buff* usbdc_buff_new(int max);
+
+void usbdc_buff_reset(usbdc_buff *buff);
 void usbdc_buff_free(usbdc_buff *buff);
 
 usbdc_handle* usbdc_handle_new(uint16_t vendor_id, uint16_t product_id);
 void usbdc_handle_free(usbdc_handle *handle);
 int usbdc_handle_checkevt(usbdc_handle *handle);
+int usbdc_handle_checkevt2(usbdc_handle *handle, struct timeval *tv);
 
 //int usbdc_handle_add_line(usbdc_handle *h, usbdc_line *line);
 #ifdef __cplusplus

@@ -168,12 +168,16 @@ void refresh_recv(usbdc_handle *handle) {
 	}
 }
 int usbdc_handle_checkevt(usbdc_handle *handle) {
+	struct timeval time = { 0, 0 };
+	return usbdc_handle_checkevt2(handle, &time);
+}
+int usbdc_handle_checkevt2(usbdc_handle *handle, struct timeval *time) {
 	FD_ZERO(&handle->rfd);
 	FD_SET(handle->ep0, &handle->rfd);
 	FD_SET(handle->evt_fd, &handle->rfd);
-	struct timeval timel = { 0, 0 };
+
 	int max = MAX(handle->ep0, handle->evt_fd);
-	int st = select(max + 1, &handle->rfd, NULL, NULL, &timel);
+	int st = select(max + 1, &handle->rfd, NULL, NULL, time);
 	if (st < 0) {
 		return -1;
 	} else if (st == 0) {

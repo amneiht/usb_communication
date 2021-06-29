@@ -11,7 +11,7 @@
 #include <libaio.h>
 #include <stdint.h>
 #include <sys/time.h>
-#define USB_MAX  6000
+#define USB_MAX  2000
 
 #define usbdc_log(lv,name,reason) \
 	if(usbdc_loglv >= lv) \
@@ -83,9 +83,14 @@ int usbdc_line_is_write_timeout(usbdc_line *line, int timeout);
 int usbdc_line_is_read_timeout(usbdc_line *line, int timeout);
 
 //usbdc_buffer hepler
-int usbdc_buff_push(usbdc_buff *buff, char *data, int slen);
-int usbdc_buff_pop(usbdc_buff *buff, char *data, int slen);
+int usbdc_buff_push(usbdc_buff *buff, void *data, int slen);
+int usbdc_buff_pop(usbdc_buff *buff, void *data, int slen);
 usbdc_buff* usbdc_buff_new(int max);
+
+int usbdc_buff_push_mess(usbdc_buff *buff, usbdc_message *mess);
+int usbdc_buff_pop_mess(usbdc_buff *buff, usbdc_message *mess);
+
+void usbdc_buff_reset(usbdc_buff *buff);
 void usbdc_buff_free(usbdc_buff *buff);
 
 //usb connect funtion
@@ -95,5 +100,9 @@ void usbdc_buff_free(usbdc_buff *buff);
 usbdc_handle* usbdc_handle_create(char *ffs, int ffslen, int nline);
 void usbdc_handle_free(usbdc_handle *handle);
 int usbdc_handle_checkevt(usbdc_handle *handle);
+int usbdc_handle_checkevt2(usbdc_handle *handle, struct timeval *time);
 int usbdc_handle_add_line(usbdc_handle *h, usbdc_line *line);
+
+// usbdc buff
+
 #endif /* USB_DC_H_ */
