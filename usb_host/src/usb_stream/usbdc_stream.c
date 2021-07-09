@@ -17,8 +17,17 @@ static int usb_io_header(void *data, usbdc_line *line, int state, int rw) {
 		if (state == usbdc_state_commplete) {
 			usbdc_io_buff *sbuff = data;
 			line->readbuff->length = le16toh(line->readbuff->length);
-			usbdc_buff_push(sbuff->read, line->readbuff,
-					line->readbuff->length);
+			int z = 1;
+			pthread_mutex_lock(&sbuff->pread);
+			if (sbuff->cb) {
+				sbuff->cb(sbuff->userdata, line->readbuff);
+				z = 0;
+			}
+			pthread_mutex_unlock(&sbuff->pread);
+			if (z) {
+				usbdc_buff_push(sbuff->read, line->readbuff,
+						line->readbuff->length);
+			}
 		}
 		line->read_progess = usbdc_state_inprogess;
 		int ret = libusb_submit_transfer(line->read_header);
@@ -29,6 +38,17 @@ static int usb_io_header(void *data, usbdc_line *line, int state, int rw) {
 	} else {
 		line->write_progess = state;
 	}
+	return 0;
+}
+int usbdc_stream_add_recv_cb(usbdc_stream *stream, int stream_id,
+		usbdc_stream_cv *cb, void *data) {
+	if (stream_id < 0 || stream_id >= stream->n_buff)
+		return -1;
+	usbdc_io_buff *ios = stream->buff[stream_id];
+	pthread_mutex_lock(&ios->pread);
+	ios->cb = cb;
+	ios->userdata = data;
+	pthread_mutex_unlock(&ios->pread);
 	return 0;
 }
 usbdc_stream* usbdc_stream_new(uint16_t vendor_id, uint16_t product_id) {
@@ -94,7 +114,8 @@ static void* usbdc_run(void *arg) {
 						if (ret > 0) {
 							line->write_header->length =
 									line->writebuff->length;
-							printf("write leng is :%d\n",line->write_header->length);
+							printf("write leng is :%d\n",
+									line->write_header->length);
 							line->writebuff->length = libusb_cpu_to_le16(
 									line->writebuff->length);
 							line->write_progess = usbdc_state_inprogess;
@@ -140,18 +161,18 @@ int usbdc_stream_write_mess(usbdc_stream *stream, int stream_id,
 		return ret;
 	if (stream_id >= stream->handle->nline)
 		return -1;
+	usbdc_io_buff *io = stream->buff[stream_id];
 	usbdc_line *line = stream->handle->line_array[stream_id];
+	pthread_mutex_lock(&io->pwrite);
 	if (usbdc_line_is_write_ready(line)) {
 		line->write_header->length = mess->length;
 		ret = usbdc_line_write(line, mess->line_buf, mess->length - 2);
 	} else {
 		if (stream->handle->connect) {
-			usbdc_io_buff *io = stream->buff[stream_id];
-			pthread_mutex_lock(&io->pwrite);
 			ret = usbdc_buff_push_mess(io->write, mess);
-			pthread_mutex_unlock(&io->pwrite);
 		}
 	}
+	pthread_mutex_unlock(&io->pwrite);
 	return ret;
 }
 int usbdc_stream_read_mess(usbdc_stream *stream, int stream_id,
@@ -182,4 +203,24 @@ void usbdc_stream_destroy(usbdc_stream *stream) {
 	free(stream->buff);
 	usbdc_handle_free(stream->handle);
 	free(stream);
+}
+int usbdc_stream_write_clean(usbdc_stream *stream, int stream_id) {
+	int ret = -1;
+	if (stream_id >= stream->handle->nline)
+		return -1;
+	usbdc_io_buff *io = stream->buff[stream_id];
+	pthread_mutex_lock(&io->pwrite);
+	ret = usbdc_buff_reset(io->write);
+	pthread_mutex_unlock(&io->pwrite);
+	return ret;
+}
+int usbdc_stream_read_clean(usbdc_stream *stream, int stream_id) {
+	int ret = -1;
+	if (stream_id >= stream->handle->nline)
+		return -1;
+	usbdc_io_buff *io = stream->buff[stream_id];
+	pthread_mutex_lock(&io->pread);
+	ret = usbdc_buff_reset(io->read);
+	pthread_mutex_unlock(&io->pread);
+	return ret;
 }

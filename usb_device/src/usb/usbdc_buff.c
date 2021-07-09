@@ -60,7 +60,7 @@ int usbdc_buff_pop_mess(usbdc_buff *buff, usbdc_message *mess) {
 	int ret = usbdc_buff_pop(buff, mess, 2);
 	if (ret < 2)
 		return 0;
-	int sleng = mess->length -2 ;
+	int sleng = mess->length - 2;
 	return usbdc_buff_pop(buff, mess->line_buf, sleng) + 2;
 }
 void usbdc_buff_reset(usbdc_buff *buff) {
