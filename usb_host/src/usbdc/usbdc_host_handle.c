@@ -9,10 +9,8 @@
 #include <usb_dc.h>
 #ifdef __linux__
 #include <poll.h>
-#else
-	#define POLLIN 0x001 /* There is data to read. */
-	#define POLLOUT 0x004 /* Writing now will not block. */
 #endif
+#include <unistd.h>
 #include <stdlib.h>
 #include <stdio.h>
 #define this "host_handle"
@@ -43,10 +41,8 @@ static void write_complete(struct libusb_transfer *t) {
 		ls->write_progess = usbdc_state_false;
 		return;
 	}
-	if (t == ls->write_header) {
+	if (t == ls->write_data) {
 		ls->head_request(ls->data, ls, state, 0);
-	} else if (t == ls->write_data) {
-		ls->data_request(ls->data, ls, state, 0);
 	}
 
 }
@@ -75,10 +71,8 @@ static void read_complete(struct libusb_transfer *t) {
 		ls->read_progess = usbdc_state_false;
 		return;
 	}
-	if (t == ls->read_header) {
+	if (t == ls->read_data) {
 		ls->head_request(ls->data, ls, state, 1);
-	} else if (t == ls->read_data) {
-		ls->data_request(ls->data, ls, state, 1);
 	}
 
 }
@@ -89,35 +83,24 @@ static int create_line(usbdc_handle *han, epl *list, int lg) {
 		ls[i] = calloc(1, sizeof(usbdc_line));
 		ls[i]->han = han;
 		if (list[i].out != 0) {
-			ls[i]->write_header = libusb_alloc_transfer(0);
 			ls[i]->write_data = libusb_alloc_transfer(0);
 			ls[i]->writebuff = malloc(sizeof(usbdc_message));
-			libusb_fill_bulk_transfer(ls[i]->write_header, han->devh,
+			libusb_fill_bulk_transfer(ls[i]->write_data, han->devh,
 					list[i].out, (unsigned char*) &ls[i]->writebuff->length, 2,
 					write_complete, ls[i], 0);
-			libusb_fill_bulk_transfer(ls[i]->write_data, han->devh, list[i].out,
-					(unsigned char*) &ls[i]->writebuff->line_buf, 0,
-					write_complete, ls[i], 0);
-
-			ls[i]->write_header->user_data = ls[i];
 			ls[i]->write_data->user_data = ls[i];
 		}
 		if (list[i].in != 0) {
-			ls[i]->read_header = libusb_alloc_transfer(0);
 			ls[i]->read_data = libusb_alloc_transfer(0);
 			ls[i]->readbuff = malloc(sizeof(usbdc_message));
-			libusb_fill_bulk_transfer(ls[i]->read_header, han->devh, list[i].in,
-					(unsigned char*) &ls[i]->readbuff->length, 2, read_complete,
-					ls[i], 0);
 			libusb_fill_bulk_transfer(ls[i]->read_data, han->devh, list[i].in,
-					(unsigned char*) &ls[i]->readbuff->line_buf, 0,
-					read_complete, ls[i], 0);
-			ls[i]->read_header->user_data = ls[i];
+					(unsigned char*) &ls[i]->readbuff->length,
+					sizeof(usbdc_message), read_complete, ls[i], 0);
 			ls[i]->read_data->user_data = ls[i];
 		}
 		ls[i]->write_progess = usbdc_state_false;
 		ls[i]->read_progess = usbdc_state_false;
-		usbdc_line_com_mode(ls[i]);
+		usbdc_line_fast_mode(ls[i]);
 	}
 	return 0;
 }
@@ -205,7 +188,7 @@ usbdc_handle* usbdc_handle_new(uint16_t vendor_id, uint16_t product_id) {
 	if (dvh == NULL) {
 		libusb_close(dvh);
 		libusb_exit(han->ctx);
-		usbdc_log(3, this, "Unable to get device");
+		//usbdc_log(3, this, "Unable to get device");
 		goto out;
 	}
 	struct libusb_config_descriptor *desc;
@@ -244,6 +227,9 @@ usbdc_handle* usbdc_handle_new(uint16_t vendor_id, uint16_t product_id) {
 	st = create_line(han, list, ret);
 //todo handle if fail
 	han->connect = 1;
+#ifdef  __linux__
+	han->pfds = libusb_get_pollfds(han->ctx);
+#endif
 	free(list);
 	return han;
 	out: free(han);
@@ -256,13 +242,13 @@ void usbdc_handle_free(usbdc_handle *handle) {
 	for (int i = 0; i < handle->nline; i++) {
 //		usbdc_line_free(handle->line_array[i]);
 		usbdc_line *line = handle->line_array[i];
-		if (line->write_header != NULL) {
-			libusb_cancel_transfer(line->write_header);
+		if (line->write_data != NULL) {
 			libusb_cancel_transfer(line->write_data);
+
 		}
-		if (line->read_header != NULL) {
-			libusb_cancel_transfer(line->read_header);
+		if (line->read_data != NULL) {
 			libusb_cancel_transfer(line->read_data);
+
 		}
 	}
 	struct timeval tv = { 0, 0 };
@@ -270,18 +256,20 @@ void usbdc_handle_free(usbdc_handle *handle) {
 	for (int i = 0; i < handle->nline; i++) {
 		//		usbdc_line_free(handle->line_array[i]);
 		usbdc_line *line = handle->line_array[i];
-		if (line->write_header) {
-			libusb_free_transfer(line->write_header);
+		if (line->write_data) {
 			libusb_free_transfer(line->write_data);
+
 			free(line->writebuff);
 		}
-		if (line->read_header) {
-			libusb_free_transfer(line->read_header);
+		if (line->read_data) {
 			libusb_free_transfer(line->read_data);
 			free(line->readbuff);
 		}
 	}
 	free(handle->line_array);
+#ifdef  __linux__
+	libusb_free_pollfds(handle->pfds);
+#endif
 	libusb_release_interface(handle->devh, handle->interface);
 	libusb_close(handle->devh);
 	libusb_exit(handle->ctx);
@@ -291,10 +279,12 @@ int usbdc_handle_checkevt(usbdc_handle *handle) {
 	struct timeval time = { 0, 0 };
 	return usbdc_handle_checkevt2(handle, &time);
 }
-int usbdc_handle_checkevt2(usbdc_handle *handle , struct timeval *tv) {
+int usbdc_handle_checkevt2(usbdc_handle *handle, struct timeval *tv) {
 
 	usbdc_line *ls;
-#ifdef __WIN32__
+	usleep(1 * 1000);
+#ifndef __linux__
+//	int commplete = 0 ;
 	int ret = libusb_handle_events_timeout_completed(handle->ctx, tv, NULL);
 	if(ret<0)
 	{
@@ -305,7 +295,7 @@ int usbdc_handle_checkevt2(usbdc_handle *handle , struct timeval *tv) {
 	FD_ZERO(&handle->rfd);
 	FD_ZERO(&handle->wfd);
 	const struct libusb_pollfd **pfds;
-	pfds = libusb_get_pollfds(handle->ctx);
+	pfds = handle->pfds;
 	if (!pfds) {
 		usbdc_log(1, this, "Unable to get libusb fds");
 		handle->connect = 0;
@@ -328,16 +318,6 @@ int usbdc_handle_checkevt2(usbdc_handle *handle , struct timeval *tv) {
 	}
 	if (ret == 0)
 		goto out;
-	if (handle->connect) {
-		for (int i = 0; i < handle->nline; i++) {
-			ls = handle->line_array[i];
-			if (ls->read_header) {
-				ls = NULL;
-			} else {
-				puts("set ting failse");
-			}
-		}
-	}
 	for (int i = 0; pfds[i]; ++i) {
 		if (!FD_ISSET(pfds[i]->fd,
 				&handle->rfd) && !FD_ISSET(pfds[i]->fd, &handle->wfd))
@@ -350,15 +330,17 @@ int usbdc_handle_checkevt2(usbdc_handle *handle , struct timeval *tv) {
 		}
 		break;
 	}
+
+	out:
 #endif
-	out: if (handle->connect) {
+	if (handle->connect) {
 		for (int i = 0; i < handle->nline; i++) {
 			ls = handle->line_array[i];
-			if (ls->read_header) {
+			if (ls->read_data) {
 				if (ls->read_progess == usbdc_state_false) {
 					ls->read_progess = usbdc_state_inprogess;
 					gettimeofday(&handle->line_array[i]->tread, NULL);
-					int ret = libusb_submit_transfer(ls->read_header);
+					int ret = libusb_submit_transfer(ls->read_data);
 					if (ret < 0) {
 						usbdc_line_read_cancel(ls);
 					}

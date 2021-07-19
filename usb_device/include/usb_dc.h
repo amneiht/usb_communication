@@ -18,9 +18,8 @@
 	fprintf(stderr,"file : %.10s ... %s\n",name,reason)
 
 extern int usbdc_loglv;
-
+typedef struct usbdc_stack usbdc_stack;
 typedef struct usbdc_line usbdc_line;
-typedef struct usbdc_buff usbdc_buff;
 typedef struct usbdc_handle usbdc_handle;
 typedef struct {
 	uint16_t length;
@@ -44,14 +43,14 @@ struct usbdc_line {
 	usbdc_handle *handle;
 	struct iocb write_header;
 	struct iocb read_header;
-	struct iocb write_data;
-	struct iocb read_data;
+//	struct iocb write_data;
+//	struct iocb read_data;
 	usbdc_message *readbuff, *writebuff;
 	struct timeval tread, twrite;
 	int write_progess;
 	int read_progess;
 	int (*head_request)(void *data, usbdc_line *line, int state, int rw);
-	int (*data_request)(void *data, usbdc_line *line, int state, int rw);
+//	int (*data_request)(void *data, usbdc_line *line, int state, int rw);
 	void *data;
 };
 struct usbdc_handle {
@@ -82,19 +81,14 @@ void usbdc_line_com_mode(usbdc_line *line);
 int usbdc_line_is_write_timeout(usbdc_line *line, int timeout);
 int usbdc_line_is_read_timeout(usbdc_line *line, int timeout);
 
-//usbdc_buffer hepler
-int usbdc_buff_push(usbdc_buff *buff, void *data, int slen);
-int usbdc_buff_pop(usbdc_buff *buff, void *data, int slen);
-usbdc_buff* usbdc_buff_new(int max);
-
-int usbdc_buff_push_mess(usbdc_buff *buff, usbdc_message *mess);
-int usbdc_buff_pop_mess(usbdc_buff *buff, usbdc_message *mess);
-
-void usbdc_buff_reset(usbdc_buff *buff);
-void usbdc_buff_free(usbdc_buff *buff);
-
-//usb connect funtion
-//usbdc_handle* usbdc_handle_new(int ep0, int maxline);
+//usb stack
+usbdc_stack* usbdc_stack_new(int maxlock, int block_size);
+void usbdc_stack_free(usbdc_stack *buff) ;
+void usbdc_stack_reset(usbdc_stack *buff) ;
+int usbdc_stack_is_full(usbdc_stack *stack) ;
+int usbdc_stack_push(usbdc_stack *stack, void *buff, int slen);
+int usbdc_stack_pop(usbdc_stack *stack, void *buff, int slen) ;
+int usbdc_stack_package_pop(usbdc_stack *stack, void *buff, int slen) ;
 
 //
 usbdc_handle* usbdc_handle_create(char *ffs, int ffslen, int nline);

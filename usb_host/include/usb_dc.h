@@ -16,7 +16,8 @@ extern "C" {
 	if(usbdc_loglv >= lv) \
 	fprintf(stderr,"file : %.10s ... %s\n",name,reason)
 
-typedef struct usbdc_buff usbdc_buff;
+//typedef struct usbdc_buff usbdc_buff;
+typedef struct usbdc_stack usbdc_stack;
 
 extern int usbdc_loglv;
 typedef struct usbdc_line usbdc_line;
@@ -43,6 +44,7 @@ typedef struct usbdc_handle {
 	char interface;
 #ifdef __linux__
 	fd_set rfd, wfd;
+	const struct libusb_pollfd **pfds ;
 #endif
 	//  ------------------- line ----------------
 	int connect; // usb connect status
@@ -53,8 +55,6 @@ typedef struct usbdc_handle {
 struct usbdc_line {
 	//todo : create buffer to handle better read action
 	usbdc_handle *han;
-	struct libusb_transfer *write_header;
-	struct libusb_transfer *read_header;
 	struct libusb_transfer *write_data;
 	struct libusb_transfer *read_data;
 	usbdc_message *readbuff, *writebuff;
@@ -62,7 +62,7 @@ struct usbdc_line {
 	int write_progess;
 	int read_progess;
 	int (*head_request)(void *data, usbdc_line *line, int state, int rw);
-	int (*data_request)(void *data, usbdc_line *line, int state, int rw);
+//	int (*data_request)(void *data, usbdc_line *line, int state, int rw);
 	void *data;
 };
 
@@ -71,7 +71,7 @@ struct usbdc_line {
 //void usbdc_line_free(usbdc_line *line);
 // config mode
 void usbdc_line_fast_mode(usbdc_line *line);
-void usbdc_line_com_mode(usbdc_line *line);
+//void usbdc_line_com_mode(usbdc_line *line);
 // 1 is ready . 0 is not
 int usbdc_line_is_write_ready(usbdc_line *line);
 int usbdc_line_is_read_ready(usbdc_line *line);
@@ -90,17 +90,15 @@ int usbdc_line_read(usbdc_line *line, char *buff, int slen);
 int usbdc_line_is_write_timeout(usbdc_line *line, int timeout);
 int usbdc_line_is_read_timeout(usbdc_line *line, int timeout);
 
-//usbdc_buffer hepler
-int usbdc_buff_push(usbdc_buff *buff, void *data, int slen);
-int usbdc_buff_pop(usbdc_buff *buff, void *data, int slen);
 
-int usbdc_buff_push_mess(usbdc_buff *buff, usbdc_message *mess);
-int usbdc_buff_pop_mess(usbdc_buff *buff, usbdc_message *mess);
-usbdc_buff* usbdc_buff_new(int max);
-
-void usbdc_buff_reset(usbdc_buff *buff);
-void usbdc_buff_free(usbdc_buff *buff);
-
+usbdc_stack* usbdc_stack_new(int maxlock, int block_size);
+void usbdc_stack_free(usbdc_stack *buff) ;
+void usbdc_stack_reset(usbdc_stack *buff) ;
+int usbdc_stack_is_full(usbdc_stack *stack) ;
+int usbdc_stack_push(usbdc_stack *stack, void *buff, int slen);
+int usbdc_stack_pop(usbdc_stack *stack, void *buff, int slen) ;
+int usbdc_stack_package_pop(usbdc_stack *stack, void *buff, int slen) ;
+// usb handle
 usbdc_handle* usbdc_handle_new(uint16_t vendor_id, uint16_t product_id);
 void usbdc_handle_free(usbdc_handle *handle);
 int usbdc_handle_checkevt(usbdc_handle *handle);

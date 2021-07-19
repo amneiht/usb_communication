@@ -12,7 +12,7 @@
 static void* usbdc_run(void *arg);
 int create_io_buff(usbdc_stream *stream);
 
-static int usb_io_header(void *data, usbdc_line *line, int state, int rw) {
+static int usb_io_data(void *data, usbdc_line *line, int state, int rw) {
 	if (rw) {
 		if (state == usbdc_state_commplete) {
 			usbdc_io_buff *sbuff = data;
@@ -25,12 +25,12 @@ static int usb_io_header(void *data, usbdc_line *line, int state, int rw) {
 			}
 			pthread_mutex_unlock(&sbuff->pread);
 			if (z) {
-				usbdc_buff_push(sbuff->read, line->readbuff,
-						line->readbuff->length);
+				usbdc_stack_push(sbuff->read, line->readbuff->line_buf,
+						line->readbuff->length - 2);
 			}
 		}
 		line->read_progess = usbdc_state_inprogess;
-		int ret = libusb_submit_transfer(line->read_header);
+		int ret = libusb_submit_transfer(line->read_data);
 		if (ret < 0)
 			line->read_progess = usbdc_state_false;
 		return ret;
@@ -53,7 +53,7 @@ int usbdc_stream_add_recv_cb(usbdc_stream *stream, int stream_id,
 }
 usbdc_stream* usbdc_stream_new(uint16_t vendor_id, uint16_t product_id) {
 
-	usbdc_stream *stream = malloc(sizeof(usbdc_stream));
+	usbdc_stream *stream = calloc(1, sizeof(usbdc_stream));
 	stream->idProduct = product_id;
 	stream->idVendor = vendor_id;
 	stream->run = 1;
@@ -62,31 +62,37 @@ usbdc_stream* usbdc_stream_new(uint16_t vendor_id, uint16_t product_id) {
 	return stream;
 }
 int create_io_buff(usbdc_stream *stream) {
+	printf("dddd\n");
 	int leng = stream->n_buff;
 	if (leng < stream->handle->nline) {
 		for (int i = leng; i < stream->handle->nline; i++) {
 			stream->buff[i] = malloc(sizeof(usbdc_io_buff));
-			stream->buff[i]->read = usbdc_buff_new(3 * USB_MAX);
-			stream->buff[i]->write = usbdc_buff_new(3 * USB_MAX);
+			stream->buff[i]->cb = NULL;
+			stream->buff[i]->userdata = NULL;
+			stream->buff[i]->read = usbdc_stack_new(100, USB_MAX);
+			stream->buff[i]->write = usbdc_stack_new(100, USB_MAX);
 			pthread_mutex_init(&stream->buff[i]->pread, PTHREAD_MUTEX_NORMAL);
-			pthread_mutex_init(&stream->buff[i]->pwrite, PTHREAD_MUTEX_NORMAL);
 		}
 		stream->n_buff = stream->handle->nline;
 	}
 	usbdc_handle *handle = stream->handle;
 	for (int i = 0; i < stream->handle->nline; i++) {
+		libusb_cancel_transfer(handle->line_array[i]->read_data);
 		handle->line_array[i]->data = stream->buff[i];
-		handle->line_array[i]->head_request = usb_io_header;
-		handle->line_array[i]->read_header->length = sizeof(usbdc_message);
+		handle->line_array[i]->head_request = usb_io_data;
+		handle->line_array[i]->read_data->length = sizeof(usbdc_message);
 	}
+
 	return stream->n_buff;
 
 }
+
 static void* usbdc_run(void *arg) {
 	usbdc_stream *stream = (usbdc_stream*) arg;
 	stream->connect = 0;
 	stream->handle = NULL;
 	stream->n_buff = 0;
+	int ret;
 	struct timeval tm = { 1, 0 };
 	while (stream->run) {
 		if (stream->handle) {
@@ -109,19 +115,20 @@ static void* usbdc_run(void *arg) {
 					usbdc_io_buff *io = stream->buff[i];
 					usbdc_line *line = stream->handle->line_array[i];
 					if (usbdc_line_is_write_ready(line)) {
-						int ret = usbdc_buff_pop_mess(io->write,
-								line->writebuff);
+						ret = usbdc_stack_package_pop(io->write,
+								line->writebuff->line_buf, USB_MAX);
+						line->writebuff->length = ret + 2;
 						if (ret > 0) {
-							line->write_header->length =
+							line->write_data->length =
 									line->writebuff->length;
 							printf("write leng is :%d\n",
-									line->write_header->length);
+									line->write_data->length);
 							line->writebuff->length = libusb_cpu_to_le16(
 									line->writebuff->length);
 							line->write_progess = usbdc_state_inprogess;
 							gettimeofday(&line->twrite, NULL);
 							int ret = libusb_submit_transfer(
-									line->write_header);
+									line->write_data);
 							if (ret < 0)
 								puts("usbdc_line send failse");
 						}
@@ -131,9 +138,7 @@ static void* usbdc_run(void *arg) {
 				stream->connect = 0;
 				for (int i = 0; i < stream->handle->nline; i++) {
 					usbdc_io_buff *io = stream->buff[i];
-					pthread_mutex_lock(&io->pwrite);
-					usbdc_buff_reset(io->write);
-					pthread_mutex_unlock(&io->pwrite);
+					usbdc_stack_reset(io->write);
 					usbdc_line_write_cancel(stream->handle->line_array[i]);
 					usbdc_line_read_cancel(stream->handle->line_array[i]);
 				}
@@ -145,9 +150,7 @@ static void* usbdc_run(void *arg) {
 	}
 	for (int i = 0; i < stream->handle->nline; i++) {
 		usbdc_io_buff *io = stream->buff[i];
-		pthread_mutex_lock(&io->pwrite);
-		usbdc_buff_reset(io->write);
-		pthread_mutex_unlock(&io->pwrite);
+		usbdc_stack_reset(io->write);
 		usbdc_line_write_cancel(stream->handle->line_array[i]);
 		usbdc_line_read_cancel(stream->handle->line_array[i]);
 	}
@@ -163,16 +166,42 @@ int usbdc_stream_write_mess(usbdc_stream *stream, int stream_id,
 		return -1;
 	usbdc_io_buff *io = stream->buff[stream_id];
 	usbdc_line *line = stream->handle->line_array[stream_id];
-	pthread_mutex_lock(&io->pwrite);
 	if (usbdc_line_is_write_ready(line)) {
-		line->write_header->length = mess->length;
+		line->write_data->length = mess->length;
+		printf("mess leng is :%d\n", mess->length - 2);
 		ret = usbdc_line_write(line, mess->line_buf, mess->length - 2);
 	} else {
 		if (stream->handle->connect) {
-			ret = usbdc_buff_push_mess(io->write, mess);
+			ret = usbdc_stack_push(io->write, mess->line_buf, mess->length - 2);
 		}
 	}
-	pthread_mutex_unlock(&io->pwrite);
+	return ret;
+}
+/** write to mess
+ * @fn int usbdc_stream_write(usbdc_stream*, int, int, void*)
+ * @param stream
+ * @param stream_id
+ * @param slen
+ * @param buff
+ * @return 0 if write ok , -1 if no connect
+ */
+int usbdc_stream_write(usbdc_stream *stream, int stream_id, void *buff,
+		int slen) {
+	int ret = -1;
+	if (!stream->connect)
+		return ret;
+	if (stream_id >= stream->handle->nline)
+		return -1;
+	usbdc_io_buff *io = stream->buff[stream_id];
+	usbdc_line *line = stream->handle->line_array[stream_id];
+	if (usbdc_line_is_write_ready(line)) {
+		line->write_data->length = slen + 2;
+		ret = usbdc_line_write(line, buff, slen);
+	} else {
+		if (stream->handle->connect) {
+			ret = usbdc_stack_push(io->write, buff, slen);
+		}
+	}
 	return ret;
 }
 int usbdc_stream_read_mess(usbdc_stream *stream, int stream_id,
@@ -184,9 +213,47 @@ int usbdc_stream_read_mess(usbdc_stream *stream, int stream_id,
 		return -1;
 	mess->length = -1;
 	usbdc_io_buff *io = stream->buff[stream_id];
-	pthread_mutex_lock(&io->pread);
-	ret = usbdc_buff_pop_mess(io->read, mess);
-	pthread_mutex_unlock(&io->pread);
+	ret = usbdc_stack_package_pop(io->read, mess->line_buf, USB_MAX);
+	mess->length = ret + 2;
+	return ret;
+}
+/** read packets , try to read full size
+ * @fn int usbdc_stream_read_package(usbdc_stream*, int, int, void*)
+ * @param stream
+ * @param stream_id
+ * @param slen . leng of buffer
+ * @param buff
+ * @return leng of data , -1 if no connect , 0 is no data
+ */
+int usbdc_stream_read(usbdc_stream *stream, int stream_id, void *buff, int slen) {
+	int ret = -1;
+	if (!stream->connect)
+		return ret;
+	if (stream_id >= stream->handle->nline)
+		return -1;
+	ret = -1;
+	usbdc_io_buff *io = stream->buff[stream_id];
+	ret = usbdc_stack_pop(io->read, buff, slen);
+	return ret;
+}
+/** read packets 1 integrity
+ * @fn int usbdc_stream_read_package(usbdc_stream*, int, int, void*)
+ * @param stream
+ * @param stream_id
+ * @param slen . leng of buffer
+ * @param buff
+ * @return leng of data , -1 if no connect , 0 is no data
+ */
+int usbdc_stream_read_package(usbdc_stream *stream, int stream_id, void *buff,
+		int slen) {
+	int ret = -1;
+	if (!stream->connect)
+		return ret;
+	if (stream_id >= stream->handle->nline)
+		return -1;
+	ret = -1;
+	usbdc_io_buff *io = stream->buff[stream_id];
+	ret = usbdc_stack_package_pop(io->read, buff, slen);
 	return ret;
 }
 void usbdc_stream_destroy(usbdc_stream *stream) {
@@ -195,9 +262,8 @@ void usbdc_stream_destroy(usbdc_stream *stream) {
 	for (int i = 0; i < stream->handle->nline; i++) {
 		usbdc_io_buff *io = stream->buff[i];
 		pthread_mutex_destroy(&io->pread);
-		pthread_mutex_destroy(&io->pwrite);
-		usbdc_buff_free(io->write);
-		usbdc_buff_free(io->read);
+		usbdc_stack_free(io->write);
+		usbdc_stack_free(io->read);
 		free(io);
 	}
 	free(stream->buff);
@@ -209,9 +275,7 @@ int usbdc_stream_write_clean(usbdc_stream *stream, int stream_id) {
 	if (stream_id >= stream->handle->nline)
 		return -1;
 	usbdc_io_buff *io = stream->buff[stream_id];
-	pthread_mutex_lock(&io->pwrite);
-	ret = usbdc_buff_reset(io->write);
-	pthread_mutex_unlock(&io->pwrite);
+	usbdc_stack_reset(io->write);
 	return ret;
 }
 int usbdc_stream_read_clean(usbdc_stream *stream, int stream_id) {
@@ -219,8 +283,6 @@ int usbdc_stream_read_clean(usbdc_stream *stream, int stream_id) {
 	if (stream_id >= stream->handle->nline)
 		return -1;
 	usbdc_io_buff *io = stream->buff[stream_id];
-	pthread_mutex_lock(&io->pread);
-	ret = usbdc_buff_reset(io->read);
-	pthread_mutex_unlock(&io->pread);
+	usbdc_stack_reset(io->read);
 	return ret;
 }

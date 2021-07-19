@@ -15,13 +15,15 @@ extern "C" {
 
 typedef struct usbdc_io_buff usbdc_io_buff;
 typedef void (usbdc_stream_cv)(void *data, usbdc_message *mess);
+typedef struct usbdc_io_stack usbdc_io_stack;
+
 struct usbdc_io_buff {
 	pthread_mutex_t pread; // kh
 	pthread_mutex_t pwrite; // kh
 	usbdc_stream_cv *cb;
 	void *userdata;
-	usbdc_buff *read;
-	usbdc_buff *write;
+	usbdc_stack *read;
+	usbdc_stack *write;
 };
 
 typedef struct usbdc_stream {
@@ -36,16 +38,23 @@ typedef struct usbdc_stream {
 } usbdc_stream;
 
 int usbdc_stream_write_mess(usbdc_stream *stream, int stream_id,
-		usbdc_message *mess);
+		usbdc_message *mess) __attribute__((deprecated));
 int usbdc_stream_read_mess(usbdc_stream *stream, int stream_id,
-		usbdc_message *mess);
+		usbdc_message *mess) __attribute__((deprecated));
+
+int usbdc_stream_write(usbdc_stream *stream, int stream_id, void *buff ,int slen );
+int usbdc_stream_read(usbdc_stream *stream, int stream_id, void *buff ,int slen );
+int usbdc_stream_read_package(usbdc_stream *stream, int stream_id,  void *buff ,int slen );
+
 usbdc_stream* usbdc_stream_new(usbdc_handle *handle);
 void usbdc_stream_destroy(usbdc_stream *stream);
 int usbdc_stream_add_recv_cb(usbdc_stream *stream, int stream_id,
 		usbdc_stream_cv *cb, void *data);
 int usbdc_stream_write_clean(usbdc_stream *stream, int stream_id);
 int usbdc_stream_read_clean(usbdc_stream *stream, int stream_id);
+
 #ifdef __cplusplus
-extern }
+	}
 #endif
+
 #endif /* USBDC_STREAM_H_ */

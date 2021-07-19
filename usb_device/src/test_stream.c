@@ -23,11 +23,14 @@ int main(int argc, char **argv) {
 	usbdc_stream_destroy(ls);
 }
 void test_stream(usbdc_stream *ls) {
-	usbdc_message mess;
+	usbdc_message mess, mess2;
+	mess2.length = sprintf(mess2.line_buf, "pika test dcdsh") + 2;
 	while (1) {
 		int ret = usbdc_stream_read_mess(ls, 0, &mess);
+		usbdc_stream_write_mess(ls, 0, &mess2);
 		if (ret > 0)
-			printf("mess is %s\nleng is :%d\n", mess.line_buf, mess.length);
+			printf("leng is :%d\n\n", mess.length);
+		usleep(200 * 1000);
 
 	}
 }

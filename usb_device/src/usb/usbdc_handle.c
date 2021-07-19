@@ -71,8 +71,8 @@ int usbdc_handle_add_line(usbdc_handle *h, usbdc_line *line) {
 	h->nline++;
 	io_set_eventfd(&line->read_header, h->evt_fd);
 	io_set_eventfd(&line->write_header, h->evt_fd);
-	io_set_eventfd(&line->read_data, h->evt_fd);
-	io_set_eventfd(&line->write_data, h->evt_fd);
+//	io_set_eventfd(&line->read_data, h->evt_fd);
+//	io_set_eventfd(&line->write_data, h->evt_fd);
 	line->handle = h;
 	return 0;
 }
@@ -145,11 +145,12 @@ void handle_events(usbdc_handle *handle) {
 			dc->head_request(dc->data, dc, res, 1);
 		} else if (io == &dc->write_header) {
 			dc->head_request(dc->data, dc, res, 0);
-		} else if (io == &dc->read_data) {
-			dc->data_request(dc->data, dc, res, 1);
-		} else if (io == &dc->write_data) {
-			dc->data_request(dc->data, dc, res, 0);
 		}
+//		else if (io == &dc->read_data) {
+//			dc->data_request(dc->data, dc, res, 1);
+//		} else if (io == &dc->write_data) {
+//			dc->data_request(dc->data, dc, res, 0);
+//		}
 	}
 }
 void refresh_recv(usbdc_handle *handle) {
@@ -175,7 +176,7 @@ int usbdc_handle_checkevt2(usbdc_handle *handle, struct timeval *time) {
 	FD_ZERO(&handle->rfd);
 	FD_SET(handle->ep0, &handle->rfd);
 	FD_SET(handle->evt_fd, &handle->rfd);
-
+	usleep(1000);
 	int max = MAX(handle->ep0, handle->evt_fd);
 	int st = select(max + 1, &handle->rfd, NULL, NULL, time);
 	if (st < 0) {
