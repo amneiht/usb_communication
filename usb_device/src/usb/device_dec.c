@@ -1,10 +1,10 @@
-#include "usb_dc.h"
 #include <linux/usb/ch9.h>
 #include <linux/usb/functionfs.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
 #include <fcntl.h>
+#include <usbdc.h>
 #define STR_INTERFACE "AMNEIHT Data line config"
 
 struct usbdc_pre_deader {

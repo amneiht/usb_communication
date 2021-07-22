@@ -7,8 +7,7 @@
 
 #include <stdlib.h>
 #include <stdio.h>
-
-#include "../../include/usb_dc.h"
+#include <usbdc.h>
 static long time_diff(struct timeval *a, struct timeval *b) {
 	long res = ((a->tv_sec - b->tv_sec) * 1000
 			- (a->tv_usec - b->tv_usec) / 1000);
@@ -17,8 +16,8 @@ static long time_diff(struct timeval *a, struct timeval *b) {
 	return res;
 }
 int usbdc_line_is_write_timeout(usbdc_line *line, int timeout) {
-	if(!line->handle->connect)
-			return 1 ;
+	if (!line->han || !line->han->connect)
+		return 1;
 	if (line->write_progess != usbdc_state_inprogess
 			&& line->write_progess != usbdc_state_handle)
 		return 0;
@@ -31,8 +30,8 @@ int usbdc_line_is_write_timeout(usbdc_line *line, int timeout) {
 	return 0;
 }
 int usbdc_line_is_read_timeout(usbdc_line *line, int timeout) {
-	if(!line->handle->connect)
-			return 1 ;
+	if (!line->han || !line->han->connect)
+		return 1;
 	if (line->read_progess == usbdc_state_commplete
 			|| line->read_progess == usbdc_state_false)
 		return 0;

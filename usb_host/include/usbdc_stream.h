@@ -7,10 +7,11 @@
 
 #ifndef USBDC_STREAM_H_
 #define USBDC_STREAM_H_
+
 #ifdef __cplusplus
 	extern "C" {
 #endif
-#include <usb_dc.h>
+#include <usbdc.h>
 #include <pthread.h>
 
 typedef struct usbdc_io_buff usbdc_io_buff;
@@ -48,9 +49,10 @@ usbdc_stream* usbdc_stream_new(uint16_t vendor_id, uint16_t product_id);
 void usbdc_stream_destroy(usbdc_stream *stream);
 int usbdc_stream_add_recv_cb(usbdc_stream *stream, int stream_id,
 		usbdc_stream_cv *cb, void *data);
+
 int usbdc_stream_write_clean(usbdc_stream *stream, int stream_id);
 int usbdc_stream_read_clean(usbdc_stream *stream, int stream_id);
-
+int usbdc_stream_clean(usbdc_stream *stream, int stream_id);
 #ifdef __cplusplus
 	 }
 #endif

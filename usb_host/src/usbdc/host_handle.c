@@ -6,7 +6,7 @@
  */
 
 //void usbdc_init();
-#include <usb_dc.h>
+#include <usbdc.h>
 #ifdef __linux__
 #include <poll.h>
 #endif

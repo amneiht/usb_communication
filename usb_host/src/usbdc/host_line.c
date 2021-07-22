@@ -4,9 +4,9 @@
  *  Created on: May 28, 2021
  *      Author: amneiht
  */
-#include <usb_dc.h>
 #include <stdio.h>
 #include <string.h>
+#include <usbdc.h>
 #define fname "host_line.c"
 static int fast_data_request(void *data, usbdc_line *line, int state, int rw) {
 	// read = 1 , write = 0

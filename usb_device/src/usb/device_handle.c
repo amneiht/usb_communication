@@ -15,7 +15,7 @@
 #include <unistd.h>
 #include <sys/eventfd.h>
 
-#include <usb_dc.h>
+#include <usbdc.h>
 #define this "usbdc_handle"
 #define MAX(a, b) ((a) > (b) ? (a) : (b))
 #define USB_TIME(a , b) \

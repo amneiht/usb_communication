@@ -5,10 +5,10 @@
  *      Author: amneiht
  */
 
-#include <usb_dc.h>
 #include <pthread.h>
 #include <string.h>
 #include <stdlib.h>
+#include <usbdc.h>
 
 typedef struct usbdc_stack_block usbdc_stack_block;
 struct usbdc_stack {
@@ -182,7 +182,7 @@ static usbdc_stack_block* drop_package(usbdc_stack_block *ls, int bsize) {
 }
 static usbdc_stack_block* write_data(usbdc_stack_block *ls, void *data,
 		int slen, int max_block) {
-	int bsize = max_block + 2;
+	const int bsize = max_block + 2;
 	int cps, lg;
 	void *pr;
 	while (slen > 0) {
@@ -200,6 +200,8 @@ static usbdc_stack_block* write_data(usbdc_stack_block *ls, void *data,
 		slen = slen - cps;
 		data = data + cps;
 	}
+	if (ls->write == bsize)
+		return ls->next;
 	return ls;
 }
 /**put you data to stack , you data is not more than block_size you set
@@ -213,7 +215,7 @@ int usbdc_stack_push(usbdc_stack *stack, void *buff, int slen) {
 	if (slen > stack->block_size)
 		return -1;
 	pthread_mutex_lock(&stack->wlock);
-	if (stack->pwrite->next == stack->pread) {
+	if (stack->pwrite->next == stack->pread && (!is_free_block(stack->pread))) {
 		pthread_mutex_lock(&stack->rlock);
 		stack->pread = drop_package(stack->pread, stack->block_size);
 		pthread_mutex_unlock(&stack->rlock);
@@ -227,12 +229,14 @@ int usbdc_stack_push(usbdc_stack *stack, void *buff, int slen) {
 int usbdc_stack_pop(usbdc_stack *stack, void *buff, int slen) {
 	pthread_mutex_lock(&stack->rlock);
 	int ret = 0, total;
-	get_data(stack->tmp, buff, slen, &ret, stack->block_size);
-	slen = slen - ret;
-	if (slen < 1) {
-		return ret;
+	if (stack->tmp->write > stack->tmp->read) {
+		get_data(stack->tmp, buff, slen, &ret, stack->block_size);
+		slen = slen - ret;
+		if (slen < 1) {
+			return ret;
+		}
+		buff = buff + ret;
 	}
-	buff = buff + ret;
 	total = ret;
 	uint16_t size;
 	int cps, check = 0;

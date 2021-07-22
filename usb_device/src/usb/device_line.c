@@ -8,7 +8,7 @@
 #include <stdio.h>
 #include <sys/types.h>
 
-#include "../../include/usb_dc.h"
+#include <usbdc.h>
 
 //static int com_header_request(void *data, usbdc_line *line, int state, int rw);
 
