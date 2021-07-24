@@ -23,13 +23,13 @@ static int usb_io_header(void *data, usbdc_line *line, int state, int rw) {
 			}
 			pthread_mutex_unlock(&sbuff->pread);
 			if (z) {
-				if (line->readbuff->length > 100)
-					printf("recv buff leng is :%d\n", line->readbuff->length);
-				else {
-					printf("recv buff mess is :%.*s\n",
-							line->readbuff->length - 2,
-							line->readbuff->line_buf);
-				}
+//				if (line->readbuff->length > 100)
+//					printf("recv buff leng is :%d\n", line->readbuff->length);
+//				else {
+//					printf("recv buff mess is :%.*s\n",
+//							line->readbuff->length - 2,
+//							line->readbuff->line_buf);
+//				}
 				usbdc_stack_push(sbuff->read, line->readbuff->line_buf,
 						line->readbuff->length - 2);
 			}
@@ -73,6 +73,8 @@ static void* usbdc_run(void *arg) {
 	int ret;
 	struct timeval tm = { 1, 0 };
 	while (stream->run) {
+		tm.tv_sec = 1;
+		tm.tv_usec = 0;
 		usbdc_handle_checkevt2(stream->handle, &tm);
 		stream->connect = stream->handle->connect;
 		if (stream->handle->connect) {

@@ -109,6 +109,8 @@ static void* usbdc_run(void *arg) {
 		stream->connect = 1;
 		create_io_buff(stream);
 		while (stream->run && stream->handle->connect) {
+			tm.tv_sec = 1;
+			tm.tv_usec = 0;
 			usbdc_handle_checkevt2(stream->handle, &tm);
 			if (stream->handle->connect) {
 				for (int i = 0; i < stream->handle->nline; i++) {

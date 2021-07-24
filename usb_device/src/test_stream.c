@@ -24,14 +24,14 @@ int main(int argc, char **argv) {
 }
 void test_stream(usbdc_stream *ls) {
 	usbdc_message mess, mess2;
-	mess2.length = sprintf(mess2.line_buf, "pika test dcdsh") + 2;
+	mess2.length = sprintf(mess2.line_buf, "pika test dcdsh");
+	usleep(200 * 1000);
 	while (1) {
-		int ret = usbdc_stream_read_mess(ls, 1, &mess);
-		usbdc_stream_write_mess(ls, 1, &mess2);
-		if (ret > 0)
-			printf("leng is :%d\n\n", mess.length);
-		usleep(200 * 1000);
-
+		int ret = usbdc_stream_read_package(ls, 1, mess2.line_buf, USB_MAX);
+//		if (ret > 0)
+//			printf("mess is %.*s\nleng is :%d\n", ret, mess2.line_buf, ret);
+//		usbdc_stream_write(ls, 1, mess.line_buf, mess.length);
+		usleep(5*1000);
 	}
 }
 

@@ -282,8 +282,7 @@ int usbdc_handle_checkevt(usbdc_handle *handle) {
 int usbdc_handle_checkevt2(usbdc_handle *handle, struct timeval *tv) {
 
 	usbdc_line *ls;
-	usleep(1 * 1000);
-#ifndef __linux__
+#ifdef __linux__
 //	int commplete = 0 ;
 	int ret = libusb_handle_events_timeout_completed(handle->ctx, tv, NULL);
 	if(ret<0)

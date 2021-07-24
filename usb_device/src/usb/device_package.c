@@ -8,6 +8,7 @@
 #include <pthread.h>
 #include <string.h>
 #include <stdlib.h>
+#include <stdio.h>
 #include <usbdc.h>
 
 typedef struct usbdc_stack_block usbdc_stack_block;
@@ -214,6 +215,7 @@ static usbdc_stack_block* write_data(usbdc_stack_block *ls, void *data,
 int usbdc_stack_push(usbdc_stack *stack, void *buff, int slen) {
 	if (slen > stack->block_size)
 		return -1;
+//	puts("drop package lol");
 	pthread_mutex_lock(&stack->wlock);
 	if (stack->pwrite->next == stack->pread && (!is_free_block(stack->pread))) {
 		pthread_mutex_lock(&stack->rlock);

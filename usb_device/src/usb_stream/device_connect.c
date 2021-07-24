@@ -5,7 +5,7 @@
  *      Author: amneiht
  */
 #include <usbdc_stream.h>
-int usbdc_stream_wait_connect(usbdc_stream *stream, int stream_id , int time_out)
-{
-
-}
+//int usbdc_stream_wait_connect(usbdc_stream *stream, int stream_id , int time_out)
+//{
+//
+//}

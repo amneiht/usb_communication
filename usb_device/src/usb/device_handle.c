@@ -176,7 +176,7 @@ int usbdc_handle_checkevt2(usbdc_handle *handle, struct timeval *time) {
 	FD_ZERO(&handle->rfd);
 	FD_SET(handle->ep0, &handle->rfd);
 	FD_SET(handle->evt_fd, &handle->rfd);
-	usleep(1000);
+//	usleep(1000);
 	int max = MAX(handle->ep0, handle->evt_fd);
 	int st = select(max + 1, &handle->rfd, NULL, NULL, time);
 	if (st < 0) {
