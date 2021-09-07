@@ -8,6 +8,7 @@
 #include <pthread.h>
 #include <string.h>
 #include <stdlib.h>
+#include <stdio.h>
 #include <usbdc.h>
 
 typedef struct usbdc_stack_block usbdc_stack_block;
@@ -159,6 +160,7 @@ static usbdc_stack_block* drop_package(usbdc_stack_block *ls, int bsize) {
 		return ls;
 	uint16_t size = 0;
 	int ret, lg;
+	puts("host drop package");
 	usbdc_stack_block *cmp = ls;
 	do {
 		ls = get_data(ls, &size, 2, &ret, bsize);

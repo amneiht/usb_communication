@@ -16,7 +16,7 @@ static int usb_io_data(void *data, usbdc_line *line, int state, int rw) {
 	if (rw) {
 		if (state == usbdc_state_commplete) {
 			usbdc_io_buff *sbuff = data;
-			line->readbuff->length = le16toh(line->readbuff->length);
+			line->readbuff->length = libusb_le16_to_cpu(line->readbuff->length);
 			int z = 1;
 			pthread_mutex_lock(&sbuff->pread);
 			if (sbuff->cb) {
@@ -285,7 +285,7 @@ int usbdc_stream_write_clean(usbdc_stream *stream, int stream_id) {
 }
 int usbdc_stream_read_clean(usbdc_stream *stream, int stream_id) {
 	int ret = 0;
-	if (stream_id >= stream->handle->nline)
+	if (stream_id >= stream->n_buff)
 		return -1;
 	usbdc_io_buff *io = stream->buff[stream_id];
 	usbdc_stack_reset(io->read);
@@ -293,7 +293,7 @@ int usbdc_stream_read_clean(usbdc_stream *stream, int stream_id) {
 }
 int usbdc_stream_clean(usbdc_stream *stream, int stream_id) {
 	int ret = -1;
-	if (stream_id >= stream->handle->nline)
+	if (stream_id >= stream->n_buff)
 		return -1;
 	usbdc_io_buff *io = stream->buff[stream_id];
 	usbdc_stack_reset(io->read);

@@ -29,7 +29,6 @@ static void write_complete(struct libusb_transfer *t) {
 		break;
 	case LIBUSB_TRANSFER_NO_DEVICE:
 		ls->write_progess = usbdc_state_false;
-		puts("fail cmnr");
 		han->connect = 0;
 		return;
 	case LIBUSB_TRANSFER_CANCELLED:
@@ -56,7 +55,6 @@ static void read_complete(struct libusb_transfer *t) {
 		break;
 	case LIBUSB_TRANSFER_NO_DEVICE:
 		ls->read_progess = usbdc_state_false;
-		puts("fail cmnr");
 		han->connect = 0;
 		return;
 	case LIBUSB_TRANSFER_CANCELLED:
@@ -227,9 +225,6 @@ usbdc_handle* usbdc_handle_new(uint16_t vendor_id, uint16_t product_id) {
 	st = create_line(han, list, ret);
 //todo handle if fail
 	han->connect = 1;
-#ifdef  __linux__
-	han->pfds = libusb_get_pollfds(han->ctx);
-#endif
 	free(list);
 	return han;
 	out: free(han);
@@ -267,9 +262,6 @@ void usbdc_handle_free(usbdc_handle *handle) {
 		}
 	}
 	free(handle->line_array);
-#ifdef  __linux__
-	libusb_free_pollfds(handle->pfds);
-#endif
 	libusb_release_interface(handle->devh, handle->interface);
 	libusb_close(handle->devh);
 	libusb_exit(handle->ctx);
@@ -282,56 +274,12 @@ int usbdc_handle_checkevt(usbdc_handle *handle) {
 int usbdc_handle_checkevt2(usbdc_handle *handle, struct timeval *tv) {
 
 	usbdc_line *ls;
-#ifdef __linux__
-//	int commplete = 0 ;
 	int ret = libusb_handle_events_timeout_completed(handle->ctx, tv, NULL);
 	if(ret<0)
 	{
 		usbdc_log(1, this, "Unable to use select");
 		handle->connect = 0;
 	}
-#else
-	FD_ZERO(&handle->rfd);
-	FD_ZERO(&handle->wfd);
-	const struct libusb_pollfd **pfds;
-	pfds = handle->pfds;
-	if (!pfds) {
-		usbdc_log(1, this, "Unable to get libusb fds");
-		handle->connect = 0;
-		return -1;
-	}
-	int max_fd = 0;
-	for (int i = 0; pfds[i]; ++i) {
-		if (pfds[i]->events & POLLIN)
-			FD_SET(pfds[i]->fd, &handle->rfd);
-
-		if (pfds[i]->events & POLLOUT)
-			FD_SET(pfds[i]->fd, &handle->wfd);
-		max_fd = pfds[i]->fd > max_fd ? pfds[i]->fd : max_fd;
-	}
-	int ret = select(max_fd + 1, &handle->rfd, &handle->wfd, NULL, tv);
-	if (ret < 0) {
-		usbdc_log(1, this, "Unable to use select");
-		handle->connect = 0;
-		return -1;
-	}
-	if (ret == 0)
-		goto out;
-	for (int i = 0; pfds[i]; ++i) {
-		if (!FD_ISSET(pfds[i]->fd,
-				&handle->rfd) && !FD_ISSET(pfds[i]->fd, &handle->wfd))
-			continue;
-		int ret = libusb_handle_events_timeout_completed(handle->ctx, tv,
-		NULL);
-		if (ret != 0) {
-			handle->connect = 0;
-			return -1;
-		}
-		break;
-	}
-
-	out:
-#endif
 	if (handle->connect) {
 		for (int i = 0; i < handle->nline; i++) {
 			ls = handle->line_array[i];

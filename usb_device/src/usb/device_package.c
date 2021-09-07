@@ -24,7 +24,7 @@ struct usbdc_stack_block {
 	int id;
 	usbdc_stack_block *next;
 	int write, read;
-	char *buff;
+	unsigned char *buff;
 };
 static int is_free_block(usbdc_stack_block *ls) {
 	return ls->write == 0 || (ls->read == ls->write);
@@ -34,7 +34,9 @@ static usbdc_stack_block* new_list(usbdc_stack_block *pre, int blocksize) {
 	if (!list)
 		return NULL;
 	list->read = 0;
-	list->buff = malloc(sizeof(char) * (blocksize + 2));
+	unsigned int data_size = (sizeof(char) * (unsigned int)(blocksize + 2));
+	list->buff = malloc(data_size);
+	// add 2 to fit with usb package
 	list->write = 0;
 	if (pre != NULL) {
 		list->id = pre->id + 1;
@@ -109,8 +111,9 @@ static void reset_block(usbdc_stack_block *ls) {
 	ls->read = 0;
 	ls->write = 0;
 }
-static usbdc_stack_block* get_data(usbdc_stack_block *ls, void *data, int slen,
-		int *ret, int blog_size) {
+static usbdc_stack_block* get_data(usbdc_stack_block *ls, void *data_p,
+		int slen, int *ret, int blog_size) {
+	unsigned char *data = (unsigned char*) data_p;
 	int bsize = blog_size + 2;
 	if (ls->write == 0 || (ls->read == ls->write)) {
 		*ret = 0;
@@ -135,8 +138,8 @@ static usbdc_stack_block* get_data(usbdc_stack_block *ls, void *data, int slen,
 				ls = ls->next;
 			}
 		}
-		memcpy(data, get, cps);
-		data = data + cps;
+		memcpy(data, get, (unsigned int) cps);
+		data = (data + cps);
 		slen = slen - cps;
 		bread = bread + cps;
 		if (slen < 1 || cps < 1)
@@ -158,8 +161,9 @@ int usbdc_stack_is_full(usbdc_stack *stack) {
 static usbdc_stack_block* drop_package(usbdc_stack_block *ls, int bsize) {
 	if (is_free_block(ls))
 		return ls;
-	uint16_t size = 0;
+	int size = 0;
 	int ret, lg;
+	puts("device drop package");
 	usbdc_stack_block *cmp = ls;
 	do {
 		ls = get_data(ls, &size, 2, &ret, bsize);
@@ -181,11 +185,12 @@ static usbdc_stack_block* drop_package(usbdc_stack_block *ls, int bsize) {
 	} while (cmp == ls);
 	return ls;
 }
-static usbdc_stack_block* write_data(usbdc_stack_block *ls, void *data,
+static usbdc_stack_block* write_data(usbdc_stack_block *ls, void *data_p,
 		int slen, int max_block) {
 	const int bsize = max_block + 2;
 	int cps, lg;
 	void *pr;
+	unsigned char *data = (unsigned char*) data_p;
 	while (slen > 0) {
 		lg = bsize - ls->write;
 		pr = ls->buff + ls->write;
@@ -197,7 +202,7 @@ static usbdc_stack_block* write_data(usbdc_stack_block *ls, void *data,
 			cps = slen;
 			ls->write = ls->write + cps;
 		}
-		memcpy(pr, data, cps);
+		memcpy(pr, data, (unsigned int) cps);
 		slen = slen - cps;
 		data = data + cps;
 	}
@@ -222,15 +227,16 @@ int usbdc_stack_push(usbdc_stack *stack, void *buff, int slen) {
 		stack->pread = drop_package(stack->pread, stack->block_size);
 		pthread_mutex_unlock(&stack->rlock);
 	}
-	uint16_t size = slen;
+	uint16_t size = (uint16_t) slen;
 	stack->pwrite = write_data(stack->pwrite, &size, 2, stack->block_size);
 	stack->pwrite = write_data(stack->pwrite, buff, slen, stack->block_size);
 	pthread_mutex_unlock(&stack->wlock);
 	return 0;
 }
-int usbdc_stack_pop(usbdc_stack *stack, void *buff, int slen) {
+int usbdc_stack_pop(usbdc_stack *stack, void *buff_p, int slen) {
 	pthread_mutex_lock(&stack->rlock);
 	int ret = 0, total;
+	unsigned char *buff = (unsigned char*) buff_p;
 	if (stack->tmp->write > stack->tmp->read) {
 		get_data(stack->tmp, buff, slen, &ret, stack->block_size);
 		slen = slen - ret;
@@ -286,9 +292,10 @@ int usbdc_stack_pop(usbdc_stack *stack, void *buff, int slen) {
  * @param slen
  * @return
  */
-int usbdc_stack_package_pop(usbdc_stack *stack, void *buff, int slen) {
+int usbdc_stack_package_pop(usbdc_stack *stack, void *buff_p, int slen) {
 	pthread_mutex_lock(&stack->rlock);
 	int ret = 0, total;
+	unsigned char *buff = (unsigned char*) buff_p;
 	if (stack->tmp->write - stack->tmp->read < slen)
 		get_data(stack->tmp, buff, slen, &ret, stack->block_size);
 	slen = slen - ret;
@@ -332,4 +339,10 @@ int usbdc_stack_package_pop(usbdc_stack *stack, void *buff, int slen) {
 	}
 	pthread_mutex_unlock(&stack->rlock);
 	return total;
+}
+void usbdc_stack_print_info(usbdc_stack *stack) {
+	fprintf(stderr, "write : id %d ,write :%d , read %d\n", stack->pwrite->id,
+			stack->pwrite->write, stack->pwrite->read);
+	fprintf(stderr, "read : id %d ,write :%d , read %d\n", stack->pread->id,
+			stack->pread->write, stack->pread->read);
 }

@@ -24,7 +24,6 @@
 #define timeout 2000
 int usbdc_loglv = 1;
 
-int usbdc_config(char *str, int slen, int **list, int nline);
 static usbdc_handle* usbdc_handle_new(int ep0, int maxline) {
 	usbdc_handle *han = calloc(1, sizeof(usbdc_handle));
 	if (han == NULL) {
@@ -44,8 +43,8 @@ static usbdc_handle* usbdc_handle_new(int ep0, int maxline) {
 		goto freectx;
 	}
 
-	han->line_array = malloc(maxline * sizeof(usbdc_line));
-	han->maxline = maxline;
+	han->line_array = malloc((unsigned int) maxline * sizeof(usbdc_line));
+	han->maxline = (unsigned int) maxline;
 	han->nline = 0;
 	han->ep0 = ep0;
 	return han;
@@ -57,7 +56,7 @@ static usbdc_handle* usbdc_handle_new(int ep0, int maxline) {
 void usbdc_handle_free(usbdc_handle *handle) {
 	free(handle->line_array);
 	close(handle->evt_fd);
-	close(handle->ep0);
+	close((int) handle->ep0);
 	io_destroy(handle->ctx);
 	free(handle);
 }
@@ -76,7 +75,7 @@ int usbdc_handle_add_line(usbdc_handle *h, usbdc_line *line) {
 	line->handle = h;
 	return 0;
 }
-void handle_ep0(usbdc_handle *handle) {
+static void handle_ep0(usbdc_handle *handle) {
 	struct usb_functionfs_event event;
 	int ret;
 	ret = read(handle->ep0, &event, sizeof(event));
@@ -108,7 +107,7 @@ void handle_ep0(usbdc_handle *handle) {
 		break;
 	case FUNCTIONFS_DISABLE:
 		puts("disable funtion");
-		for (int i = 0; i < handle->nline; i++) {
+		for (unsigned int i = 0; i < handle->nline; i++) {
 			usbdc_line_read_cancel(handle->line_array[i]);
 			usbdc_line_write_cancel(handle->line_array[i]);
 		}
@@ -118,16 +117,17 @@ void handle_ep0(usbdc_handle *handle) {
 		break;
 	}
 }
-void handle_events(usbdc_handle *handle) {
+static void handle_events(usbdc_handle *handle) {
 	uint64_t ev_cnt;
 	struct io_event e[handle->nline * 2];
+	// we must read 64bit for evenhandle
 	int ret = read(handle->evt_fd, &ev_cnt, sizeof(ev_cnt));
 	if (ret < 0) {
 		usbdc_log(2, this, "unable to read eventfd");
 		return;
 	}
 	struct timespec time = { 0, 0 };
-	ret = io_getevents(handle->ctx, 1, ev_cnt, e, &time);
+	ret = io_getevents(handle->ctx, 1, (long) ev_cnt, e, &time);
 	if (ret < 0)
 		return;
 	for (int i = 0; i < ret; i++) {
@@ -135,8 +135,9 @@ void handle_events(usbdc_handle *handle) {
 		if (io == NULL)
 			continue;
 		usbdc_line *dc = io->data;
-		int res = e[i].res;
-		if (res >= 0) {
+		int res = (int) e[i].res;
+		// res = 0 la loi
+		if (res > 0) {
 			res = usbdc_state_commplete;
 		} else {
 			res = usbdc_state_false;
@@ -146,16 +147,11 @@ void handle_events(usbdc_handle *handle) {
 		} else if (io == &dc->write_header) {
 			dc->head_request(dc->data, dc, res, 0);
 		}
-//		else if (io == &dc->read_data) {
-//			dc->data_request(dc->data, dc, res, 1);
-//		} else if (io == &dc->write_data) {
-//			dc->data_request(dc->data, dc, res, 0);
-//		}
 	}
 }
-void refresh_recv(usbdc_handle *handle) {
+static void refresh_recv(usbdc_handle *handle) {
 
-	for (int i = 0; i < handle->nline; i++) {
+	for (unsigned int i = 0; i < handle->nline; i++) {
 		if (handle->line_array[i]->read_progess == usbdc_state_false) {
 			handle->line_array[i]->read_progess = usbdc_state_inprogess;
 			gettimeofday(&handle->line_array[i]->tread, NULL);
@@ -174,8 +170,10 @@ int usbdc_handle_checkevt(usbdc_handle *handle) {
 }
 int usbdc_handle_checkevt2(usbdc_handle *handle, struct timeval *time) {
 	FD_ZERO(&handle->rfd);
-	FD_SET(handle->ep0, &handle->rfd);
-	FD_SET(handle->evt_fd, &handle->rfd);
+	unsigned int ep0 = (unsigned int) handle->ep0;
+	unsigned int evt_fd = (unsigned int) handle->evt_fd;
+	FD_SET(ep0, &handle->rfd);
+	FD_SET(evt_fd, &handle->rfd);
 //	usleep(1000);
 	int max = MAX(handle->ep0, handle->evt_fd);
 	int st = select(max + 1, &handle->rfd, NULL, NULL, time);
@@ -184,17 +182,17 @@ int usbdc_handle_checkevt2(usbdc_handle *handle, struct timeval *time) {
 	} else if (st == 0) {
 		goto out;
 	}
-	if (FD_ISSET(handle->ep0, &handle->rfd)) {
+	if (FD_ISSET(ep0, &handle->rfd)) {
 		handle_ep0(handle);
 	}
-	if (FD_ISSET(handle->evt_fd, &handle->rfd)) {
+	if (FD_ISSET(evt_fd, &handle->rfd)) {
 		handle_events(handle);
 	}
 	out: if (handle->connect)
 		refresh_recv(handle);
 	return 0;
 }
-usbdc_handle* usbdc_handle_create(char *ffs, int ffslen, int nline) {
+usbdc_handle* usbdc_handle_create(const char *ffs, int ffslen, int nline) {
 	int *list;
 	int list_len = usbdc_config(ffs, ffslen, &list, nline);
 	if (list_len % 2 == 0) {

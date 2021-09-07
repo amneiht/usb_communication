@@ -11,7 +11,7 @@
 extern "C" {
 #endif
 #include <libusb-1.0/libusb.h>
-#define USB_MAX  2000
+#define USB_MAX  20000
 #define usbdc_log(lv,name,reason) \
 	if(usbdc_loglv >= lv) \
 	fprintf(stderr,"file : %.10s ... %s\n",name,reason)
@@ -41,10 +41,8 @@ typedef struct usbdc_handle {
 	libusb_context *ctx;
 	libusb_device_handle *devh;
 	char interface;
-#ifdef __linux__
-	fd_set rfd, wfd;
-	const struct libusb_pollfd **pfds ;
-#endif
+	// private data
+//	void *pri ;
 	//  ------------------- line ----------------
 	int connect; // usb connect status
 	int nline; // so event dang chua
@@ -61,7 +59,6 @@ struct usbdc_line {
 	int write_progess;
 	int read_progess;
 	int (*head_request)(void *data, usbdc_line *line, int state, int rw);
-//	int (*data_request)(void *data, usbdc_line *line, int state, int rw);
 	void *data;
 };
 
@@ -80,14 +77,13 @@ int usbdc_line_read(usbdc_line *line, char *buff, int slen);
 int usbdc_line_is_write_timeout(usbdc_line *line, int timeout);
 int usbdc_line_is_read_timeout(usbdc_line *line, int timeout);
 
-
 usbdc_stack* usbdc_stack_new(int maxlock, int block_size);
-void usbdc_stack_free(usbdc_stack *buff) ;
-void usbdc_stack_reset(usbdc_stack *buff) ;
-int usbdc_stack_is_full(usbdc_stack *stack) ;
+void usbdc_stack_free(usbdc_stack *buff);
+void usbdc_stack_reset(usbdc_stack *buff);
+int usbdc_stack_is_full(usbdc_stack *stack);
 int usbdc_stack_push(usbdc_stack *stack, void *buff, int slen);
-int usbdc_stack_pop(usbdc_stack *stack, void *buff, int slen) ;
-int usbdc_stack_package_pop(usbdc_stack *stack, void *buff, int slen) ;
+int usbdc_stack_pop(usbdc_stack *stack, void *buff, int slen);
+int usbdc_stack_package_pop(usbdc_stack *stack, void *buff, int slen);
 // usb handle
 usbdc_handle* usbdc_handle_new(uint16_t vendor_id, uint16_t product_id);
 void usbdc_handle_free(usbdc_handle *handle);

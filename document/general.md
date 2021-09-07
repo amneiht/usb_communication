@@ -9,7 +9,7 @@ and usbdc_line contain data about two enpoint in and out ,
 i has writen some funtion for it make the write and read action is asynchous and simple 
 
 <br>
-with usbdc_handle you should call usbdc_handle_checkevt before do anything . be cause idon't want create new thread to handle . but it is no problem if you create a loop  same that
+with usbdc_handle you should call usbdc_handle_checkevt before do anything . because some device cannot create mutithread . it you device is strong you can create thead with loop sane that or use high level api is usbdc_stream
 <pre>
 usbdc_handle * han ;
 #---do something-----
@@ -35,4 +35,8 @@ if (usbdc_line_is_read_ready(ls)) {
 	usbdc_line_read_cancel(ls);
 }
 </pre>
+becareful
+on now my lib is not savefull for mutithreading , It mean that if more than one thread write or read on the 1 line/stream in same time , it will be crash or cannot kill
+because it can create 32 enpoint aka 16 line . I thing . it will be enough for mutihreading
+
 //todo : more example

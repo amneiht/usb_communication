@@ -54,6 +54,7 @@ int usbdc_stream_add_recv_cb(usbdc_stream *stream, int stream_id,
 int usbdc_stream_write_clean(usbdc_stream *stream, int stream_id);
 int usbdc_stream_read_clean(usbdc_stream *stream, int stream_id);
 int usbdc_stream_clean(usbdc_stream *stream, int stream_id);
+void usbdc_stream_print_info(usbdc_stream *stream, int stream_id);
 //int usbdc_stream_connect(usbdc_stream *stream, int stream_id , int time_out);
 //int usbdc_stream_wait_connect(usbdc_stream *stream, int stream_id , int time_out);
 #ifdef __cplusplus
